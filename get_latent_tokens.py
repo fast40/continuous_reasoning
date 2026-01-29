@@ -8,15 +8,14 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from huggingface_hub import snapshot_download
 import tqdm
 
-from coconut.coconut import Coconut
+from coconut.coconut_capture import Coconut
 from coconut.dataset import (
     get_dataset,
     get_question_latent_dataset,
-    get_cot_latent_dataset,
     MyCollator,
 )
 
-from coconut.utils import Config, set_seed
+from coconut.utils import Config
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 BATCH_SIZE = 64
@@ -48,7 +47,7 @@ model = Coconut(
 model.eval()
 model.to(DEVICE)
 
-for i in [4, 25]: #range(4, 26):
+for i in range(4, 26):
     t = time.perf_counter()
     ckpt_dir = snapshot_download(f'Onlydrinkwater/gpt2-coconut-checkpoint{i}')
     state_path = os.path.join(ckpt_dir, "pytorch_model.bin")
@@ -64,16 +63,13 @@ for i in [4, 25]: #range(4, 26):
         end_id,
     )
 
+    latent_vecs = torch.empty((0, 768))
+    normal_vecs = torch.empty((0, 768))
+
     collator = MyCollator(tokenizer, latent_id=latent_id, label_pad_token_id=-100)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collator)
 
-    latent_vecs = torch.empty((0, 768))  # (num_latents, hidden)
-
-    num_batches = int(2**13 / BATCH_SIZE)
-
-    for batch_num in tqdm.tqdm(range(num_batches)):
-        batch = next(iter(loader))
-
+    for batch in tqdm.tqdm(loader):
         input_ids = batch['input_ids'].to(DEVICE)
         labels = input_ids.clone()  # this is UNUSED I think. TODO: figure out if that's actually true
         attention_mask = batch['attention_mask'].to(DEVICE)
@@ -82,11 +78,17 @@ for i in [4, 25]: #range(4, 26):
         with torch.no_grad():
             out = model.forward(input_ids, attention_mask, labels, position_ids)
 
-        latent_pos = (input_ids == latent_id).nonzero(as_tuple=False) # latent_pos is (num_latents_total_in_batch, 2) => [batch_idx, seq_idx]
-        latent_vecs = torch.cat((latent_vecs, out.inputs_embeds[latent_pos[:, 0], latent_pos[:, 1], :].cpu()))
+        valid = attention_mask.cpu().bool()
+        latent = (input_ids == latent_id).cpu()
+        
+        latent_mask = valid & latent
+        normal_mask = valid & (~latent)
 
-        if batch_num == num_batches - 1:
-            torch.save(latent_vecs, f'latent_vecs_48k_checkpoint_{i}.pt')
-            t = time.perf_counter() - t
-            print(f'checkpoint {i} done in {t} seconds')
+        latent_vecs = torch.cat((latent_vecs, out.ln1_values[latent_mask]))
+        normal_vecs = torch.cat((normal_vecs, out.ln1_values[normal_mask]))
+
+    torch.save(latent_vecs, f'data2/latent_vecs_checkpoint_{i}.pt')
+    torch.save(normal_vecs, f'data2/normal_vecs_checkpoint_{i}.pt')
+    t = time.perf_counter() - t
+    print(f'checkpoint {i} done in {t} seconds. saved latent_vecs w/ shape {latent_vecs.shape}')
 
