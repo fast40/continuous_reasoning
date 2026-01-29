@@ -1,47 +1,27 @@
 import sys
 import time
 
-import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator, AutoMinorLocator
 
-COSINE_SIMILARITIES_FILE = sys.argv[1] if len(sys.argv) > 1 else 'embeddings_cosine_similarities.pt'
+COSINE_SIMILARITIES_FILE = sys.argv[1] if len(sys.argv) > 1 else 'histogram.npz'
 
-print('Loading cosine cosine_similarities...')
-t = time.perf_counter()
+data = np.load(COSINE_SIMILARITIES_FILE)
 
-cosine_similarities = torch.load(COSINE_SIMILARITIES_FILE)
+# x = np.linspace(mu - 4*sigma, mu + 4*sigma, 1000)
+#
+# # Gaussian (PDF)
+# y = (1/(sigma*np.sqrt(2*np.pi))) * np.exp(-0.5*((x - mu)/sigma)**2)
 
-t = time.perf_counter() - t
-print(f'Loaded {cosine_similarities.size(0)} cosine similarity values in {t} seconds.')
-
-print('Creating histogram...')
-t = time.perf_counter()
-histogram, boundaries = torch.histogram(cosine_similarities, bins=512, density=True)
-x_values = 0.5 * (boundaries[:-1] + boundaries[1:])
-
-t = time.perf_counter() - t
-print(f'Created histogram in {t} seconds.')
+# plt.plot(x, y)
+# plt.fill_between(x, y, alpha=0.3)
 
 
-mu = torch.mean(cosine_similarities)
-sigma = torch.std(cosine_similarities)
-
-x = np.linspace(mu - 4*sigma, mu + 4*sigma, 1000)
-
-# Gaussian (PDF)
-y = (1/(sigma*np.sqrt(2*np.pi))) * np.exp(-0.5*((x - mu)/sigma)**2)
-
-plt.plot(x, y)
-plt.fill_between(x, y, alpha=0.3)
-
-
-plt.plot(x_values, histogram)
-plt.fill_between(x_values, histogram, alpha=0.3)
+plt.plot(data['x_values'], data['histogram'])
+plt.fill_between(data['x_values'], data['histogram'], alpha=0.3)
 # plt.axvline(torch.mean(cosine_similarities).item(), linestyle='--', color='black')
 plt.axvline(0, linestyle='--', color='black')
-
 
 ax = plt.gca()
 
