@@ -48,7 +48,7 @@ model = Coconut(
 model.eval()
 model.to(DEVICE)
 
-for i in range(4, 26):
+for i in [4, 25]: #range(4, 26):
     t = time.perf_counter()
     ckpt_dir = snapshot_download(f'Onlydrinkwater/gpt2-coconut-checkpoint{i}')
     state_path = os.path.join(ckpt_dir, "pytorch_model.bin")
@@ -69,7 +69,7 @@ for i in range(4, 26):
 
     latent_vecs = torch.empty((0, 768))  # (num_latents, hidden)
 
-    num_batches = int(1024 / BATCH_SIZE)
+    num_batches = int(2**13 / BATCH_SIZE)
 
     for batch_num in tqdm.tqdm(range(num_batches)):
         batch = next(iter(loader))
@@ -86,8 +86,7 @@ for i in range(4, 26):
         latent_vecs = torch.cat((latent_vecs, out.inputs_embeds[latent_pos[:, 0], latent_pos[:, 1], :].cpu()))
 
         if batch_num == num_batches - 1:
-            torch.save(latent_vecs, f'latent_vecs_checkpoint_{i}.pt')
+            torch.save(latent_vecs, f'latent_vecs_48k_checkpoint_{i}.pt')
             t = time.perf_counter() - t
             print(f'checkpoint {i} done in {t} seconds')
-
 
