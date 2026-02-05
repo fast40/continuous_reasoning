@@ -22,11 +22,11 @@ rainbow24 = [
 for color, histogram_file in zip(rainbow24, HISTOGRAM_FILES):
     data = np.load(histogram_file)
 
-    plt.plot(data['x_values'], data['histogram'], label=histogram_file.split('.')[0], color=color)
+    plt.plot(data['x_values'], data['histogram'], label=histogram_file.split('.')[0])
     # plt.fill_between(data['x_values'], data['histogram'], alpha=0.3)
 
 
-plt.title('Density of Pairwise Cosine Similarity Across GPT-2 Coconut Checkpoints')
+plt.title('Density of Pairwise Cosine Similarity Across Llama3.2 Coconut Checkpoints')
 plt.xlabel('Cosine Similarity')
 plt.ylabel('Density')
 plt.axvline(0, linestyle='--', color='black')

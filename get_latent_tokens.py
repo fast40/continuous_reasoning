@@ -18,14 +18,15 @@ from coconut.dataset import (
 from coconut.utils import Config
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 
 with open('coconut/args/gsm_coconut_eval.yaml') as f:
     config_dict = yaml.safe_load(f)
 
 configs = Config(config_dict)
 
-tokenizer = AutoTokenizer.from_pretrained('gpt2')
+tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B')
+# tokenizer = AutoTokenizer.from_pretrained('gpt2')
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.add_tokens("<|start-latent|>")
 tokenizer.add_tokens("<|end-latent|>")
@@ -35,7 +36,8 @@ latent_id = tokenizer.convert_tokens_to_ids("<|latent|>")
 start_id = tokenizer.convert_tokens_to_ids("<|start-latent|>")
 end_id = tokenizer.convert_tokens_to_ids("<|end-latent|>")
 
-model = AutoModelForCausalLM.from_pretrained('gpt2')
+model = AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-1B')
+# model = AutoModelForCausalLM.from_pretrained('gpt2')
 model.resize_token_embeddings(len(tokenizer))
 model = Coconut(
     model,
@@ -47,9 +49,10 @@ model = Coconut(
 model.eval()
 model.to(DEVICE)
 
-for i in range(4, 26):
+for i in range(4, 15 + 1):  # 25 + 1
     t = time.perf_counter()
-    ckpt_dir = snapshot_download(f'Onlydrinkwater/gpt2-coconut-checkpoint{i}')
+    # ckpt_dir = snapshot_download(f'Onlydrinkwater/gpt2-coconut-checkpoint{i}')
+    ckpt_dir = snapshot_download(f'Onlydrinkwater/llama32-1b-gsm-coconut-checkpoint{i}')
     state_path = os.path.join(ckpt_dir, "pytorch_model.bin")
     state_dict = torch.load(state_path, map_location="cpu")
     model.load_state_dict(state_dict, strict=False)
@@ -63,8 +66,11 @@ for i in range(4, 26):
         end_id,
     )
 
-    latent_vecs = torch.empty((0, 768))
-    normal_vecs = torch.empty((0, 768))
+    latent_vecs = torch.empty((0, 2048))
+    normal_vecs = torch.empty((0, 2048))
+    # latent_vecs = torch.empty((0, 768))
+    # normal_vecs = torch.empty((0, 768))
+    input_cap = torch.empty((0,))
 
     collator = MyCollator(tokenizer, latent_id=latent_id, label_pad_token_id=-100)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collator)
@@ -86,9 +92,16 @@ for i in range(4, 26):
 
         latent_vecs = torch.cat((latent_vecs, out.ln1_values[latent_mask]))
         normal_vecs = torch.cat((normal_vecs, out.ln1_values[normal_mask]))
+        input_cap = torch.cat((input_cap, input_ids[normal_mask].cpu()))
 
-    torch.save(latent_vecs, f'data2/latent_vecs_checkpoint_{i}.pt')
-    torch.save(normal_vecs, f'data2/normal_vecs_checkpoint_{i}.pt')
+        # print(input_ids[normal_mask].unique().size())
+        # print(input_ids[latent_mask].unique().size())
+
+    print(input_cap.size())
+    print(input_cap.unique().size())
+
+    torch.save(latent_vecs, f'data_llama_2/latent_vecs_checkpoint_{i:02}.pt')
+    torch.save(normal_vecs, f'data_llama_2/normal_vecs_checkpoint_{i:02}.pt')
     t = time.perf_counter() - t
     print(f'checkpoint {i} done in {t} seconds. saved latent_vecs w/ shape {latent_vecs.shape}')
 
